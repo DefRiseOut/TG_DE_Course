@@ -13,9 +13,10 @@ import os
 
 class Equation:
     C = 0
-    step = 1
+    y0 = 0
 
-    def __init__(self, x0, y0, step):
+    def __init__(self, x0, y0):
+        self.y0 = y0
         if y0 > 0:
             self.C = y0 ** (1./3.) - x0
         elif y0 == 0:
@@ -26,6 +27,8 @@ class Equation:
         return 3 * y ** (2 / 3)
 
     def y(self, x):
+        if self.y0 == 0:
+            return 0
         return (x + self.C) ** 3
 
 
@@ -46,7 +49,7 @@ class Method:
         self.X = X
         self.N = N
         self.step = (X - x0) / N
-        self.function = Equation(x0, y0, self.step)
+        self.function = Equation(x0, y0)
 
     def next_yi(self, xi, yi):
         return yi
@@ -54,20 +57,20 @@ class Method:
     def range_n(self, n):
         return [(self.X - self.x0)*i/n+self.x0 for i in range(n)]
 
-    def exact(self):
+    def exact_graph(self):
         x_values = self.range_n(100) + [self.X]
         yi = self.y0
         exact_values = [yi]
         for xi in self.range_n(100):
-            exact_values += [self.function.y(xi + (self.X-self.x0)/100)]
+            exact_values += [self.function.y(xi + (self.X - self.x0) / 100)]
         x_values2 = [self.x0 + j * self.step for j in range(self.N)] + [self.X]
         return x_values, exact_values, x_values2
 
     def local_error(self, xi):
         yi = self.function.y(xi)
-        return self.function.y(xi+self.step) - self.next_yi(xi, yi)
+        return self.function.y(xi + self.step) - self.next_yi(xi, yi)
 
-    def approximate_error(self):
+    def approximate_graph(self):
         approx = []
         local_errors = []
         yi = self.y0
@@ -88,41 +91,23 @@ class EulerMethod(Method):
 
     def __init__(self, x0, y0, X, N):
         super().__init__(x0, y0, X, N)
-        self.x0 = x0
-        self.y0 = y0
-        self.X = X
-        self.N = N
-        self.step = (X - x0) / N
-        self.funct = Equation(x0, y0, self.step)
 
     def next_yi(self, xi, yi):
-        return yi + self.step * self.funct.y_derivative(xi, yi)
+        return yi + self.step * self.function.y_derivative(xi, yi)
 
 
 class ImprovedEulerMethod(Method):
     def __init__(self, x0, y0, X, N):
         super().__init__(x0, y0, X, N)
-        self.x0 = x0
-        self.y0 = y0
-        self.X = X
-        self.N = N
-        self.step = (X - x0) / N
-        self.funct = Equation(x0, y0, self.step)
 
     def next_yi(self, xi, yi):
-        yi_1 = yi + self.step * self.funct.y_derivative(xi, yi)
-        return yi + (self.step / 2) * (self.funct.y_derivative(xi, yi) + self.funct.y_derivative(xi + self.step, yi_1))
+        yi_1 = yi + self.step * self.function.y_derivative(xi, yi)
+        return yi + (self.step / 2) * (self.function.y_derivative(xi, yi) + self.function.y_derivative(xi + self.step, yi_1))
 
 
 class RungeKuttaMethod(Method):
     def __init__(self, x0, y0, X, N):
         super().__init__(x0, y0, X, N)
-        self.x0 = x0
-        self.y0 = y0
-        self.X = X
-        self.N = N
-        self.step = (X - x0) / N
-        self.function = Equation(x0, y0, self.step)
 
     def next_yi(self, xi, yi):
         k1_i = self.function.y_derivative(xi, yi)
@@ -140,9 +125,9 @@ def methods_n_range(x0, y0, X, n_start, n_end):
         euler = EulerMethod(x0, y0, X, N)
         improved_euler = ImprovedEulerMethod(x0, y0, X, N)
         runge_kutta = RungeKuttaMethod(x0, y0, X, N)
-        temp1, temp2, error1 = euler.approximate_error()
-        temp1, temp2, error2 = improved_euler.approximate_error()
-        temp1, temp2, error3 = runge_kutta.approximate_error()
+        temp1, temp2, error1 = euler.approximate_graph()
+        temp1, temp2, error2 = improved_euler.approximate_graph()
+        temp1, temp2, error3 = runge_kutta.approximate_graph()
         errors_1 += [error1]
         errors_2 += [error2]
         errors_3 += [error3]
@@ -189,7 +174,7 @@ class MainWindow(UiMainWindow):
         N_start = round(int(self.NstartInput.text()))
         N_end = round(int(self.NendInput.text()))
 
-        if x0 == X:
+        if x0 >= X:
             return None
         if N == 0:
             return None
@@ -204,27 +189,25 @@ class MainWindow(UiMainWindow):
         self.improvedEulerMethod = ImprovedEulerMethod(x0, y0, X, N)
         self.rungeKuttaMethod = RungeKuttaMethod(x0, y0, X, N)
 
-        x_values, exact_values, x_values2 = self.eulerMethod.exact()
-        for i in x_values: print(i)
-        print(len(x_values))
+        x_values, exact_values, x_values2 = self.eulerMethod.exact_graph()
         if self.checkBox.checkState():
             pen = pg.mkPen(color=(255, 255, 255))
             self.graphwidget.plot(x_values, exact_values, pen=pen, name="Exact Solution")
 
         if self.checkBox_2.checkState():
-            approx_2, local_2, total_2 = self.eulerMethod.approximate_error()
+            approx_2, local_2, total_2 = self.eulerMethod.approximate_graph()
             pen = pg.mkPen(color=(0, 0, 255))
             self.graphwidget.plot(x_values2, approx_2, pen=pen, name="Euler's method")
             self.graphwidget_2.plot(x_values2[:N], local_2, pen=pen, name="Euler's method")
 
         if self.checkBox_3.checkState():
-            approx_3, local_3, total_3 = self.improvedEulerMethod.approximate_error()
+            approx_3, local_3, total_3 = self.improvedEulerMethod.approximate_graph()
             pen = pg.mkPen(color=(255, 0, 0))
             self.graphwidget.plot(x_values2, approx_3, pen=pen, name="Improved Euler's method")
             self.graphwidget_2.plot(x_values2[:N], local_3, pen=pen, name="Improved Euler's method")
 
         if self.checkBox_4.checkState():
-            approx_4, local_4, total_4 = self.rungeKuttaMethod.approximate_error()
+            approx_4, local_4, total_4 = self.rungeKuttaMethod.approximate_graph()
             pen = pg.mkPen(color=(0, 255, 0))
             self.graphwidget.plot(x_values2, approx_4, pen=pen, name="Runge-Kutta method")
             self.graphwidget_2.plot(x_values2[:N], local_4, pen=pen, name="Runge-Kutta method")
